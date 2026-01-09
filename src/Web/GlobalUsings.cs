@@ -1,7 +1,11 @@
 global using System.Net.Http.Json;
+global using ArticleManagementApp.Shared.Abstractions;
+global using ArticleManagementApp.Shared.Entities;
 global using ArticleManagementApp.Shared.Interfaces;
+global using ArticleManagementApp.Shared.Validators;
 global using ArticleManagementApp.Web.Data;
 global using ArticleManagementApp.Web.Services;
+global using FluentValidation;
 global using Microsoft.AspNetCore.Builder;
 global using Microsoft.AspNetCore.Components;
 global using Microsoft.AspNetCore.Components.Routing;
