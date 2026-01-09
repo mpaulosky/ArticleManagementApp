@@ -1,0 +1,71 @@
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio
+.vs/
+.vscode/
+*.sln.DotSettings.user
+*.user
+*.rsuser
+*.suo
+*.sln.docstates
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+
+# Local user-specific files
+appsettings.Local.json
+appsettings.local.json
+appsettings.*.local.json
+
+# Docker
+docker-compose.override.yml
+
+# Test Results
+TestResults/
+*.trx
+coverage.cobertura.xml
+*.coverage
+
+# Node
+node_modules/
+npm-debug.log
+package-lock.json
+
+# Uploads (but keep the directory)
+uploads/*
+!uploads/.gitkeep
+
+# Environment
+.env
+.env.local
+
+# MacOS
+.DS_Store
+._*
+
+# Build artifacts
+dist/
+build/
