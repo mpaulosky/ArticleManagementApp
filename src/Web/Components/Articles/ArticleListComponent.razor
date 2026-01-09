@@ -1,0 +1,315 @@
+@* =======================================================
+Copyright (c) 2025. All rights reserved.
+File Name :     ArticleListComponent.razor
+Company :       ArticleManagementApp
+Author :        GitHub Copilot
+Solution Name : ArticleManagementApp
+Project Name :  Web
+======================================================= *@
+
+@inject GetAllArticlesHandler GetAllArticlesHandler
+@inject SearchArticlesHandler SearchArticlesHandler
+@inject ICategoryRepository CategoryRepository
+@inject ILogger<ArticleListComponent> Logger
+
+<div class="article-list @CssClass">
+	<!-- Search and Filter -->
+	<div class="row mb-4">
+		<div class="col-md-6">
+			<div class="input-group">
+				<span class="input-group-text"><i class="bi bi-search"></i></span>
+				<input type="text" class="form-control" placeholder="Search articles..." 
+					   @bind="_searchQuery" @bind:event="oninput" @onkeyup="HandleSearchAsync" />
+				@if (!string.IsNullOrWhiteSpace(_searchQuery))
+				{
+					<button class="btn btn-outline-secondary" type="button" @onclick="ClearSearchAsync">
+						<i class="bi bi-x"></i>
+					</button>
+				}
+			</div>
+		</div>
+		<div class="col-md-3">
+			<select class="form-select" @bind="_selectedCategoryId" @bind:after="LoadArticlesAsync">
+				<option value="">All Categories</option>
+				@if (_categories is not null)
+				{
+					@foreach (var category in _categories)
+					{
+						<option value="@category.Id">@category.Name</option>
+					}
+				}
+			</select>
+		</div>
+		<div class="col-md-3">
+			<select class="form-select" @bind="_publishedFilter" @bind:after="LoadArticlesAsync">
+				<option value="all">All Status</option>
+				<option value="published">Published Only</option>
+				<option value="draft">Drafts Only</option>
+			</select>
+		</div>
+	</div>
+
+	@if (_isLoading)
+	{
+		<LoadingComponent Message="Loading articles..." />
+	}
+	else if (_articles is null || _articles.Count == 0)
+	{
+		<div class="alert alert-info">
+			<i class="bi bi-info-circle me-2"></i>
+			@if (!string.IsNullOrWhiteSpace(_searchQuery))
+			{
+				<span>No articles found matching "@_searchQuery".</span>
+			}
+			else
+			{
+				<span>No articles found. <a href="/articles/create">Create your first article</a>!</span>
+			}
+		</div>
+	}
+	else
+	{
+		@if (ViewMode == "grid")
+		{
+			<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+				@foreach (var article in _paginatedArticles)
+				{
+					<div class="col">
+						<ArticleCardComponent Article="@article" ShowActions="@ShowActions" />
+					</div>
+				}
+			</div>
+		}
+		else
+		{
+			<div class="list-group">
+				@foreach (var article in _paginatedArticles)
+				{
+					<div class="list-group-item">
+						<div class="d-flex w-100 justify-content-between align-items-start mb-2">
+							<h5 class="mb-1">
+								<a href="/articles/@article.Slug" class="text-decoration-none">@article.Title</a>
+							</h5>
+							@if (article.IsPublished)
+							{
+								<span class="badge bg-success">Published</span>
+							}
+							else
+							{
+								<span class="badge bg-secondary">Draft</span>
+							}
+						</div>
+						<p class="mb-1 text-muted">@(article.Summary ?? (article.Content.Length > 200 ? article.Content.Substring(0, 200) + "..." : article.Content))</p>
+						<div class="d-flex justify-content-between align-items-center">
+							<small class="text-muted">
+								<i class="bi bi-person me-1"></i>@article.Author
+								<span class="mx-2">•</span>
+								<i class="bi bi-calendar me-1"></i>@article.CreatedAt.ToString("MMM dd, yyyy")
+								<span class="mx-2">•</span>
+								<i class="bi bi-eye me-1"></i>@article.ViewCount views
+							</small>
+							@if (ShowActions)
+							{
+								<div class="btn-group btn-group-sm">
+									<a href="/articles/@article.Slug" class="btn btn-outline-primary">View</a>
+									<a href="/articles/edit/@article.Id" class="btn btn-outline-secondary">Edit</a>
+								</div>
+							}
+						</div>
+					</div>
+				}
+			</div>
+		}
+
+		@if (_articles.Count > PageSize)
+		{
+			<div class="mt-4">
+				<PaginationComponent CurrentPage="_currentPage" 
+									 TotalItems="_articles.Count" 
+									 PageSize="PageSize"
+									 OnPageChanged="HandlePageChangedAsync" />
+			</div>
+		}
+	}
+</div>
+
+@code {
+	/// <summary>
+	/// Gets or sets whether to show only published articles.
+	/// </summary>
+	[Parameter]
+	public bool PublishedOnly { get; set; } = false;
+
+	/// <summary>
+	/// Gets or sets whether to show action buttons.
+	/// </summary>
+	[Parameter]
+	public bool ShowActions { get; set; } = true;
+
+	/// <summary>
+	/// Gets or sets the view mode (grid or list).
+	/// </summary>
+	[Parameter]
+	public string ViewMode { get; set; } = "grid";
+
+	/// <summary>
+	/// Gets or sets the number of items per page.
+	/// </summary>
+	[Parameter]
+	public int PageSize { get; set; } = 9;
+
+	/// <summary>
+	/// Gets or sets additional CSS classes to apply to the component.
+	/// </summary>
+	[Parameter]
+	public string CssClass { get; set; } = string.Empty;
+
+	private List<Article>? _articles;
+	private List<Article> _paginatedArticles = [];
+	private List<Category>? _categories;
+	private bool _isLoading = true;
+	private string _searchQuery = string.Empty;
+	private string _selectedCategoryId = string.Empty;
+	private string _publishedFilter = "all";
+	private int _currentPage = 1;
+
+	protected override async Task OnInitializedAsync()
+	{
+		await LoadCategoriesAsync();
+		await LoadArticlesAsync();
+	}
+
+	private async Task LoadCategoriesAsync()
+	{
+		try
+		{
+			_categories = await CategoryRepository.GetAllAsync(activeOnly: true);
+		}
+		catch (Exception ex)
+		{
+			Logger.LogError(ex, "Error loading categories");
+		}
+	}
+
+	private async Task LoadArticlesAsync()
+	{
+		_isLoading = true;
+
+		try
+		{
+			bool isPublishedOnly = PublishedOnly || _publishedFilter == "published";
+			string? categoryId = string.IsNullOrWhiteSpace(_selectedCategoryId) ? null : _selectedCategoryId;
+
+			var result = await GetAllArticlesHandler.HandleAsync(isPublishedOnly, categoryId);
+
+			if (result.IsSuccess && result.Value is not null)
+			{
+				_articles = result.Value;
+
+				// Apply draft filter if needed
+				if (_publishedFilter == "draft")
+				{
+					_articles = _articles.Where(a => !a.IsPublished).ToList();
+				}
+
+				// Order by created date descending
+				_articles = _articles.OrderByDescending(a => a.CreatedAt).ToList();
+
+				_currentPage = 1;
+				UpdatePaginatedArticles();
+			}
+			else
+			{
+				Logger.LogWarning("Failed to load articles: {Error}", result.Error);
+				_articles = [];
+			}
+		}
+		catch (Exception ex)
+		{
+			Logger.LogError(ex, "Error loading articles");
+			_articles = [];
+		}
+		finally
+		{
+			_isLoading = false;
+		}
+	}
+
+	private async Task HandleSearchAsync(KeyboardEventArgs e)
+	{
+		if (string.IsNullOrWhiteSpace(_searchQuery))
+		{
+			await LoadArticlesAsync();
+			return;
+		}
+
+		// Debounce: only search after user stops typing for 300ms
+		await Task.Delay(300);
+
+		_isLoading = true;
+
+		try
+		{
+			var result = await SearchArticlesHandler.HandleAsync(_searchQuery);
+
+			if (result.IsSuccess && result.Value is not null)
+			{
+				_articles = result.Value;
+
+				// Apply filters
+				if (!string.IsNullOrWhiteSpace(_selectedCategoryId))
+				{
+					_articles = _articles.Where(a => a.CategoryId == _selectedCategoryId).ToList();
+				}
+
+				if (_publishedFilter == "published")
+				{
+					_articles = _articles.Where(a => a.IsPublished).ToList();
+				}
+				else if (_publishedFilter == "draft")
+				{
+					_articles = _articles.Where(a => !a.IsPublished).ToList();
+				}
+
+				_articles = _articles.OrderByDescending(a => a.CreatedAt).ToList();
+				_currentPage = 1;
+				UpdatePaginatedArticles();
+			}
+		}
+		catch (Exception ex)
+		{
+			Logger.LogError(ex, "Error searching articles");
+		}
+		finally
+		{
+			_isLoading = false;
+		}
+	}
+
+	private async Task ClearSearchAsync()
+	{
+		_searchQuery = string.Empty;
+		await LoadArticlesAsync();
+	}
+
+	private Task HandlePageChangedAsync(int page)
+	{
+		_currentPage = page;
+		UpdatePaginatedArticles();
+		return Task.CompletedTask;
+	}
+
+	private void UpdatePaginatedArticles()
+	{
+		if (_articles is null)
+		{
+			_paginatedArticles = [];
+			return;
+		}
+
+		_paginatedArticles = _articles
+			.Skip((_currentPage - 1) * PageSize)
+			.Take(PageSize)
+			.ToList();
+	}
+}

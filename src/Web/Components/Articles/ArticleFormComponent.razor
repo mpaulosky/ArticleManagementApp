@@ -1,0 +1,249 @@
+@* =======================================================
+Copyright (c) 2025. All rights reserved.
+File Name :     ArticleFormComponent.razor
+Company :       ArticleManagementApp
+Author :        GitHub Copilot
+Solution Name : ArticleManagementApp
+Project Name :  Web
+======================================================= *@
+
+@inject ICategoryRepository CategoryRepository
+@inject ILogger<ArticleFormComponent> Logger
+
+<EditForm Model="Article" OnValidSubmit="HandleValidSubmitAsync">
+	<FluentValidationValidator />
+
+	<div class="row">
+		<div class="col-md-8">
+			<div class="mb-3">
+				<label for="title" class="form-label">Title <span class="text-danger">*</span></label>
+				<InputText id="title" class="form-control" @bind-Value="Article.Title" @oninput="GenerateSlug" />
+				<ValidationMessage For="@(() => Article.Title)" />
+			</div>
+
+			<div class="mb-3">
+				<label for="slug" class="form-label">Slug <span class="text-danger">*</span></label>
+				<InputText id="slug" class="form-control" @bind-Value="Article.Slug" />
+				<div class="form-text">URL-friendly version of the title (e.g., my-article-title)</div>
+				<ValidationMessage For="@(() => Article.Slug)" />
+			</div>
+
+			<div class="mb-3">
+				<label for="summary" class="form-label">Summary</label>
+				<InputTextArea id="summary" class="form-control" rows="3" @bind-Value="Article.Summary" />
+				<div class="form-text">Brief description of the article (max 500 characters)</div>
+				<ValidationMessage For="@(() => Article.Summary)" />
+			</div>
+
+			<div class="mb-3">
+				<label for="content" class="form-label">Content <span class="text-danger">*</span></label>
+				<InputTextArea id="content" class="form-control" rows="15" @bind-Value="Article.Content" />
+				<div class="form-text">Markdown supported</div>
+				<ValidationMessage For="@(() => Article.Content)" />
+			</div>
+		</div>
+
+		<div class="col-md-4">
+			<div class="mb-3">
+				<label for="author" class="form-label">Author <span class="text-danger">*</span></label>
+				<InputText id="author" class="form-control" @bind-Value="Article.Author" />
+				<ValidationMessage For="@(() => Article.Author)" />
+			</div>
+
+			<div class="mb-3">
+				<label for="category" class="form-label">Category <span class="text-danger">*</span></label>
+				<InputSelect id="category" class="form-select" @bind-Value="Article.CategoryId">
+					<option value="">-- Select Category --</option>
+					@if (_categories is not null)
+					{
+						@foreach (var category in _categories)
+						{
+							<option value="@category.Id">@category.Name</option>
+						}
+					}
+				</InputSelect>
+				<ValidationMessage For="@(() => Article.CategoryId)" />
+			</div>
+
+			<div class="mb-3">
+				<label for="tags" class="form-label">Tags</label>
+				<InputText id="tags" class="form-control" @bind-Value="_tagsInput" />
+				<div class="form-text">Comma-separated (e.g., tech, blazor, dotnet)</div>
+			</div>
+
+			@if (Article.Tags is not null && Article.Tags.Count > 0)
+			{
+				<div class="mb-3">
+					<div class="d-flex flex-wrap gap-1">
+						@foreach (var tag in Article.Tags)
+						{
+							<span class="badge bg-primary">
+								@tag
+								<button type="button" class="btn-close btn-close-white ms-1" @onclick="() => RemoveTag(tag)" 
+										style="font-size: 0.6rem; vertical-align: middle;" aria-label="Remove tag"></button>
+							</span>
+						}
+					</div>
+				</div>
+			}
+
+			<div class="mb-3">
+				<div class="form-check form-switch">
+					<InputCheckbox id="isPublished" class="form-check-input" @bind-Value="Article.IsPublished" />
+					<label class="form-check-label" for="isPublished">Published</label>
+				</div>
+			</div>
+
+			@if (!string.IsNullOrWhiteSpace(ErrorMessage))
+			{
+				<ErrorAlertComponent ErrorMessage="@ErrorMessage" CssClass="mb-3" />
+			}
+
+			<div class="d-grid gap-2">
+				<button type="submit" class="btn btn-primary" disabled="@_isSubmitting">
+					@if (_isSubmitting)
+					{
+						<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+					}
+					<i class="bi bi-save me-1"></i>
+					@SubmitButtonText
+				</button>
+				<button type="button" class="btn btn-outline-secondary" @onclick="HandleCancel" disabled="@_isSubmitting">
+					<i class="bi bi-x-circle me-1"></i> Cancel
+				</button>
+			</div>
+		</div>
+	</div>
+</EditForm>
+
+@code {
+	/// <summary>
+	/// Gets or sets the article being edited.
+	/// </summary>
+	[Parameter]
+	public Article Article { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets the submit button text.
+	/// </summary>
+	[Parameter]
+	public string SubmitButtonText { get; set; } = "Save Article";
+
+	/// <summary>
+	/// Gets or sets the callback when the form is submitted successfully.
+	/// </summary>
+	[Parameter]
+	public EventCallback<Article> OnSubmit { get; set; }
+
+	/// <summary>
+	/// Gets or sets the callback when the cancel button is clicked.
+	/// </summary>
+	[Parameter]
+	public EventCallback OnCancel { get; set; }
+
+	/// <summary>
+	/// Gets or sets the error message to display.
+	/// </summary>
+	[Parameter]
+	public string ErrorMessage { get; set; } = string.Empty;
+
+	private List<Category>? _categories;
+	private bool _isSubmitting;
+	private string _tagsInput = string.Empty;
+
+	protected override async Task OnInitializedAsync()
+	{
+		try
+		{
+			_categories = await CategoryRepository.GetAllAsync(activeOnly: true);
+
+			// Initialize tags input if article has tags
+			if (Article.Tags is not null && Article.Tags.Count > 0)
+			{
+				_tagsInput = string.Join(", ", Article.Tags);
+			}
+		}
+		catch (Exception ex)
+		{
+			Logger.LogError(ex, "Error loading categories");
+		}
+	}
+
+	private void GenerateSlug(ChangeEventArgs e)
+	{
+		if (e.Value is string title && !string.IsNullOrWhiteSpace(title))
+		{
+			Article.Slug = title.ToLowerInvariant()
+				.Replace(" ", "-")
+				.Replace("_", "-");
+			
+			// Remove special characters and keep only alphanumeric and hyphens
+			Article.Slug = System.Text.RegularExpressions.Regex.Replace(Article.Slug, @"[^a-z0-9\-]", "");
+			
+			// Remove multiple consecutive hyphens
+			Article.Slug = System.Text.RegularExpressions.Regex.Replace(Article.Slug, @"-+", "-");
+			
+			// Trim hyphens from start and end
+			Article.Slug = Article.Slug.Trim('-');
+		}
+	}
+
+	private void RemoveTag(string tag)
+	{
+		if (Article.Tags is not null)
+		{
+			Article.Tags.Remove(tag);
+			_tagsInput = string.Join(", ", Article.Tags);
+		}
+	}
+
+	private async Task HandleValidSubmitAsync()
+	{
+		_isSubmitting = true;
+
+		try
+		{
+			// Parse tags from input
+			if (!string.IsNullOrWhiteSpace(_tagsInput))
+			{
+				Article.Tags = _tagsInput
+					.Split(',')
+					.Select(t => t.Trim())
+					.Where(t => !string.IsNullOrWhiteSpace(t))
+					.Distinct()
+					.ToList();
+			}
+			else
+			{
+				Article.Tags = [];
+			}
+
+			// Set timestamps
+			if (string.IsNullOrWhiteSpace(Article.Id))
+			{
+				Article.CreatedAt = DateTime.UtcNow;
+			}
+			Article.UpdatedAt = DateTime.UtcNow;
+
+			if (Article.IsPublished && Article.PublishedAt is null)
+			{
+				Article.PublishedAt = DateTime.UtcNow;
+			}
+			else if (!Article.IsPublished)
+			{
+				Article.PublishedAt = null;
+			}
+
+			await OnSubmit.InvokeAsync(Article);
+		}
+		finally
+		{
+			_isSubmitting = false;
+		}
+	}
+
+	private async Task HandleCancel()
+	{
+		await OnCancel.InvokeAsync();
+	}
+}

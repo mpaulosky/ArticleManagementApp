@@ -1,0 +1,296 @@
+@* =======================================================
+Copyright (c) 2025. All rights reserved.
+File Name :     AdminDashboardPage.razor
+Company :       ArticleManagementApp
+Author :        GitHub Copilot
+Solution Name : ArticleManagementApp
+Project Name :  Web
+======================================================= *@
+
+@page "/admin"
+@rendermode InteractiveServer
+@inject IArticleRepository ArticleRepository
+@inject ICategoryRepository CategoryRepository
+@inject ILogger<AdminDashboardPage> Logger
+
+<PageTitle>Admin Dashboard - ArticleManagementApp</PageTitle>
+
+<PageHeaderComponent Title="Admin Dashboard" Subtitle="Overview and statistics" />
+
+@if (_isLoading)
+{
+	<LoadingComponent Message="Loading dashboard..." />
+}
+else
+{
+	<!-- Statistics Cards -->
+	<div class="row g-4 mb-4">
+		<div class="col-md-3">
+			<div class="card text-white bg-primary">
+				<div class="card-body">
+					<div class="d-flex justify-content-between align-items-center">
+						<div>
+							<h6 class="card-subtitle mb-2 text-white-50">Total Articles</h6>
+							<h2 class="card-title mb-0">@_totalArticles</h2>
+						</div>
+						<i class="bi bi-file-text fs-1 opacity-50"></i>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="col-md-3">
+			<div class="card text-white bg-success">
+				<div class="card-body">
+					<div class="d-flex justify-content-between align-items-center">
+						<div>
+							<h6 class="card-subtitle mb-2 text-white-50">Published</h6>
+							<h2 class="card-title mb-0">@_publishedArticles</h2>
+						</div>
+						<i class="bi bi-check-circle fs-1 opacity-50"></i>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="col-md-3">
+			<div class="card text-white bg-warning">
+				<div class="card-body">
+					<div class="d-flex justify-content-between align-items-center">
+						<div>
+							<h6 class="card-subtitle mb-2 text-white-50">Drafts</h6>
+							<h2 class="card-title mb-0">@_draftArticles</h2>
+						</div>
+						<i class="bi bi-pencil-square fs-1 opacity-50"></i>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="col-md-3">
+			<div class="card text-white bg-info">
+				<div class="card-body">
+					<div class="d-flex justify-content-between align-items-center">
+						<div>
+							<h6 class="card-subtitle mb-2 text-white-50">Categories</h6>
+							<h2 class="card-title mb-0">@_totalCategories</h2>
+						</div>
+						<i class="bi bi-folder fs-1 opacity-50"></i>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div class="row g-4 mb-4">
+		<div class="col-md-6">
+			<div class="card">
+				<div class="card-header">
+					<h5 class="mb-0">
+						<i class="bi bi-eye-fill me-2"></i>
+						Total Views
+					</h5>
+				</div>
+				<div class="card-body">
+					<h2 class="text-primary">@_totalViews.ToString("N0")</h2>
+					<p class="text-muted mb-0">Across all articles</p>
+				</div>
+			</div>
+		</div>
+
+		<div class="col-md-6">
+			<div class="card">
+				<div class="card-header">
+					<h5 class="mb-0">
+						<i class="bi bi-graph-up me-2"></i>
+						Average Views
+					</h5>
+				</div>
+				<div class="card-body">
+					<h2 class="text-success">@_averageViews.ToString("N1")</h2>
+					<p class="text-muted mb-0">Per article</p>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Recent Articles -->
+	<div class="row g-4 mb-4">
+		<div class="col-12">
+			<div class="card">
+				<div class="card-header d-flex justify-content-between align-items-center">
+					<h5 class="mb-0">
+						<i class="bi bi-clock-history me-2"></i>
+						Recent Articles
+					</h5>
+					<a href="/articles" class="btn btn-sm btn-outline-primary">View All</a>
+				</div>
+				<div class="card-body">
+					@if (_recentArticles is null || _recentArticles.Count == 0)
+					{
+						<p class="text-muted mb-0">No articles yet.</p>
+					}
+					else
+					{
+						<div class="list-group list-group-flush">
+							@foreach (var article in _recentArticles)
+							{
+								<div class="list-group-item px-0">
+									<div class="d-flex w-100 justify-content-between align-items-start">
+										<div>
+											<h6 class="mb-1">
+												<a href="/articles/@article.Slug" class="text-decoration-none">@article.Title</a>
+											</h6>
+											<p class="mb-1 text-muted small">@article.Author</p>
+										</div>
+										<div class="text-end">
+											@if (article.IsPublished)
+											{
+												<span class="badge bg-success mb-1">Published</span>
+											}
+											else
+											{
+												<span class="badge bg-secondary mb-1">Draft</span>
+											}
+											<div class="text-muted small">
+												@article.CreatedAt.ToString("MMM dd, yyyy")
+											</div>
+										</div>
+									</div>
+								</div>
+							}
+						</div>
+					}
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Most Viewed Articles -->
+	<div class="row g-4 mb-4">
+		<div class="col-12">
+			<div class="card">
+				<div class="card-header">
+					<h5 class="mb-0">
+						<i class="bi bi-trophy-fill me-2"></i>
+						Most Viewed Articles
+					</h5>
+				</div>
+				<div class="card-body">
+					@if (_mostViewedArticles is null || _mostViewedArticles.Count == 0)
+					{
+						<p class="text-muted mb-0">No articles yet.</p>
+					}
+					else
+					{
+						<div class="list-group list-group-flush">
+							@foreach (var article in _mostViewedArticles)
+							{
+								<div class="list-group-item px-0">
+									<div class="d-flex w-100 justify-content-between align-items-center">
+										<div>
+											<h6 class="mb-1">
+												<a href="/articles/@article.Slug" class="text-decoration-none">@article.Title</a>
+											</h6>
+											<p class="mb-0 text-muted small">@article.Author</p>
+										</div>
+										<div class="text-end">
+											<div class="badge bg-primary fs-6">
+												<i class="bi bi-eye-fill me-1"></i>
+												@article.ViewCount views
+											</div>
+										</div>
+									</div>
+								</div>
+							}
+						</div>
+					}
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Quick Actions -->
+	<div class="row g-4">
+		<div class="col-12">
+			<div class="card">
+				<div class="card-header">
+					<h5 class="mb-0">
+						<i class="bi bi-lightning-fill me-2"></i>
+						Quick Actions
+					</h5>
+				</div>
+				<div class="card-body">
+					<div class="d-flex flex-wrap gap-2">
+						<a href="/articles/create" class="btn btn-primary">
+							<i class="bi bi-plus-circle me-1"></i> New Article
+						</a>
+						<a href="/articles" class="btn btn-outline-primary">
+							<i class="bi bi-file-text me-1"></i> Manage Articles
+						</a>
+						<a href="/categories" class="btn btn-outline-secondary">
+							<i class="bi bi-folder me-1"></i> Manage Categories
+						</a>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
+@code {
+	private bool _isLoading = true;
+	private int _totalArticles;
+	private int _publishedArticles;
+	private int _draftArticles;
+	private int _totalCategories;
+	private int _totalViews;
+	private double _averageViews;
+	private List<Article>? _recentArticles;
+	private List<Article>? _mostViewedArticles;
+
+	protected override async Task OnInitializedAsync()
+	{
+		await LoadDashboardDataAsync();
+	}
+
+	private async Task LoadDashboardDataAsync()
+	{
+		_isLoading = true;
+
+		try
+		{
+			// Load all articles
+			var allArticles = await ArticleRepository.GetAllAsync(isPublishedOnly: false);
+
+			_totalArticles = allArticles.Count;
+			_publishedArticles = allArticles.Count(a => a.IsPublished);
+			_draftArticles = allArticles.Count(a => !a.IsPublished);
+			_totalViews = allArticles.Sum(a => a.ViewCount);
+			_averageViews = _totalArticles > 0 ? (double)_totalViews / _totalArticles : 0;
+
+			// Get recent articles (last 5)
+			_recentArticles = allArticles
+				.OrderByDescending(a => a.CreatedAt)
+				.Take(5)
+				.ToList();
+
+			// Get most viewed articles (top 5)
+			_mostViewedArticles = allArticles
+				.OrderByDescending(a => a.ViewCount)
+				.Take(5)
+				.ToList();
+
+			// Load categories count
+			_totalCategories = await CategoryRepository.GetCountAsync();
+		}
+		catch (Exception ex)
+		{
+			Logger.LogError(ex, "Error loading dashboard data");
+		}
+		finally
+		{
+			_isLoading = false;
+		}
+	}
+}

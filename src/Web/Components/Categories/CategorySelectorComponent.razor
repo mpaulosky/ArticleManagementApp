@@ -1,0 +1,106 @@
+@* =======================================================
+Copyright (c) 2025. All rights reserved.
+File Name :     CategorySelectorComponent.razor
+Company :       ArticleManagementApp
+Author :        GitHub Copilot
+Solution Name : ArticleManagementApp
+Project Name :  Web
+======================================================= *@
+
+@inject ICategoryRepository CategoryRepository
+@inject ILogger<CategorySelectorComponent> Logger
+
+<select class="form-select @CssClass" @bind="SelectedCategoryId" @bind:after="NotifySelectionChanged">
+	<option value="">@PlaceholderText</option>
+	@if (_categories is not null)
+	{
+		@foreach (var category in _rootCategories)
+		{
+			<option value="@category.Id">@category.Name</option>
+			@if (_subcategories.TryGetValue(category.Id, out var subcats))
+			{
+				@foreach (var subcat in subcats)
+				{
+					<option value="@subcat.Id">&nbsp;&nbsp;&nbsp;└─ @subcat.Name</option>
+				}
+			}
+		}
+	}
+</select>
+
+@code {
+	/// <summary>
+	/// Gets or sets the selected category ID.
+	/// </summary>
+	[Parameter]
+	public string SelectedCategoryId { get; set; } = string.Empty;
+
+	/// <summary>
+	/// Gets or sets the callback when the selection changes.
+	/// </summary>
+	[Parameter]
+	public EventCallback<string> SelectedCategoryIdChanged { get; set; }
+
+	/// <summary>
+	/// Gets or sets the placeholder text.
+	/// </summary>
+	[Parameter]
+	public string PlaceholderText { get; set; } = "-- Select Category --";
+
+	/// <summary>
+	/// Gets or sets whether to show only active categories.
+	/// </summary>
+	[Parameter]
+	public bool ActiveOnly { get; set; } = true;
+
+	/// <summary>
+	/// Gets or sets additional CSS classes to apply to the component.
+	/// </summary>
+	[Parameter]
+	public string CssClass { get; set; } = string.Empty;
+
+	private List<Category>? _categories;
+	private List<Category> _rootCategories = [];
+	private Dictionary<string, List<Category>> _subcategories = new();
+
+	protected override async Task OnInitializedAsync()
+	{
+		await LoadCategoriesAsync();
+	}
+
+	private async Task LoadCategoriesAsync()
+	{
+		try
+		{
+			_categories = await CategoryRepository.GetAllAsync(activeOnly: ActiveOnly);
+
+			if (_categories is not null)
+			{
+				// Get root categories (no parent)
+				_rootCategories = _categories
+					.Where(c => string.IsNullOrWhiteSpace(c.ParentId))
+					.OrderBy(c => c.DisplayOrder)
+					.ThenBy(c => c.Name)
+					.ToList();
+
+				// Group subcategories by parent
+				_subcategories = _categories
+					.Where(c => !string.IsNullOrWhiteSpace(c.ParentId))
+					.GroupBy(c => c.ParentId!)
+					.ToDictionary(
+						g => g.Key,
+						g => g.OrderBy(c => c.DisplayOrder).ThenBy(c => c.Name).ToList()
+					);
+			}
+		}
+		catch (Exception ex)
+		{
+			Logger.LogError(ex, "Error loading categories");
+		}
+	}
+
+	private async Task NotifySelectionChanged()
+	{
+		await SelectedCategoryIdChanged.InvokeAsync(SelectedCategoryId);
+	}
+}

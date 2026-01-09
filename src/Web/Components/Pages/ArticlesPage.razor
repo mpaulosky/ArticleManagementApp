@@ -1,0 +1,23 @@
+@* =======================================================
+Copyright (c) 2025. All rights reserved.
+File Name :     ArticlesPage.razor
+Company :       ArticleManagementApp
+Author :        GitHub Copilot
+Solution Name : ArticleManagementApp
+Project Name :  Web
+======================================================= *@
+
+@page "/articles"
+@rendermode InteractiveServer
+
+<PageTitle>Articles - ArticleManagementApp</PageTitle>
+
+<PageHeaderComponent Title="Articles" Subtitle="Manage and view all your articles">
+	<ActionButton>
+		<a href="/articles/create" class="btn btn-primary">
+			<i class="bi bi-plus-circle me-1"></i> Create Article
+		</a>
+	</ActionButton>
+</PageHeaderComponent>
+
+<ArticleListComponent ShowActions="true" ViewMode="grid" PageSize="9" />

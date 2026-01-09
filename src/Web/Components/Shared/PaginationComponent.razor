@@ -1,0 +1,129 @@
+@* =======================================================
+Copyright (c) 2025. All rights reserved.
+File Name :     PaginationComponent.razor
+Company :       ArticleManagementApp
+Author :        GitHub Copilot
+Solution Name : ArticleManagementApp
+Project Name :  Web
+======================================================= *@
+
+@if (TotalPages > 1)
+{
+	<nav aria-label="Page navigation" class="@CssClass">
+		<ul class="pagination justify-content-center mb-0">
+			<li class="page-item @(CurrentPage == 1 ? "disabled" : "")">
+				<button class="page-link" @onclick="() => OnPageChangedAsync(1)" disabled="@(CurrentPage == 1)">
+					<i class="bi bi-chevron-double-left"></i>
+				</button>
+			</li>
+			<li class="page-item @(CurrentPage == 1 ? "disabled" : "")">
+				<button class="page-link" @onclick="() => OnPageChangedAsync(CurrentPage - 1)" disabled="@(CurrentPage == 1)">
+					<i class="bi bi-chevron-left"></i>
+				</button>
+			</li>
+
+			@for (int i = StartPage; i <= EndPage; i++)
+			{
+				var pageNum = i;
+				<li class="page-item @(pageNum == CurrentPage ? "active" : "")">
+					<button class="page-link" @onclick="() => OnPageChangedAsync(pageNum)">@pageNum</button>
+				</li>
+			}
+
+			<li class="page-item @(CurrentPage == TotalPages ? "disabled" : "")">
+				<button class="page-link" @onclick="() => OnPageChangedAsync(CurrentPage + 1)" disabled="@(CurrentPage == TotalPages)">
+					<i class="bi bi-chevron-right"></i>
+				</button>
+			</li>
+			<li class="page-item @(CurrentPage == TotalPages ? "disabled" : "")">
+				<button class="page-link" @onclick="() => OnPageChangedAsync(TotalPages)" disabled="@(CurrentPage == TotalPages)">
+					<i class="bi bi-chevron-double-right"></i>
+				</button>
+			</li>
+		</ul>
+	</nav>
+
+	@if (ShowPageInfo)
+	{
+		<div class="text-center text-muted mt-2">
+			<small>Page @CurrentPage of @TotalPages (@TotalItems total items)</small>
+		</div>
+	}
+}
+
+@code {
+	/// <summary>
+	/// Gets or sets the current page number (1-based).
+	/// </summary>
+	[Parameter]
+	public int CurrentPage { get; set; } = 1;
+
+	/// <summary>
+	/// Gets or sets the total number of items.
+	/// </summary>
+	[Parameter]
+	public int TotalItems { get; set; }
+
+	/// <summary>
+	/// Gets or sets the number of items per page.
+	/// </summary>
+	[Parameter]
+	public int PageSize { get; set; } = 10;
+
+	/// <summary>
+	/// Gets or sets the callback when the page changes.
+	/// </summary>
+	[Parameter]
+	public EventCallback<int> OnPageChanged { get; set; }
+
+	/// <summary>
+	/// Gets or sets whether to show page info text.
+	/// </summary>
+	[Parameter]
+	public bool ShowPageInfo { get; set; } = true;
+
+	/// <summary>
+	/// Gets or sets additional CSS classes to apply to the component.
+	/// </summary>
+	[Parameter]
+	public string CssClass { get; set; } = string.Empty;
+
+	/// <summary>
+	/// Gets or sets the maximum number of page buttons to display.
+	/// </summary>
+	[Parameter]
+	public int MaxPageButtons { get; set; } = 5;
+
+	private int TotalPages => (int)Math.Ceiling((double)TotalItems / PageSize);
+
+	private int StartPage
+	{
+		get
+		{
+			var half = MaxPageButtons / 2;
+			var start = CurrentPage - half;
+			if (start < 1) start = 1;
+			if (start + MaxPageButtons > TotalPages)
+				start = Math.Max(1, TotalPages - MaxPageButtons + 1);
+			return start;
+		}
+	}
+
+	private int EndPage
+	{
+		get
+		{
+			var end = StartPage + MaxPageButtons - 1;
+			if (end > TotalPages) end = TotalPages;
+			return end;
+		}
+	}
+
+	private async Task OnPageChangedAsync(int page)
+	{
+		if (page < 1 || page > TotalPages || page == CurrentPage)
+			return;
+
+		await OnPageChanged.InvokeAsync(page);
+	}
+}
