@@ -1,0 +1,212 @@
+@* =======================================================
+Copyright (c) 2025. All rights reserved.
+File Name :     CategoryFormComponent.razor
+Company :       ArticleManagementApp
+Author :        GitHub Copilot
+Solution Name : ArticleManagementApp
+Project Name :  Web
+======================================================= *@
+
+@inject ICategoryRepository CategoryRepository
+@inject ILogger<CategoryFormComponent> Logger
+
+<EditForm Model="Category" OnValidSubmit="HandleValidSubmitAsync">
+	<FluentValidationValidator />
+
+	<div class="mb-3">
+		<label for="name" class="form-label">Name <span class="text-danger">*</span></label>
+		<InputText id="name" class="form-control" @bind-Value="Category.Name" @oninput="GenerateSlug" />
+		<ValidationMessage For="@(() => Category.Name)" />
+	</div>
+
+	<div class="mb-3">
+		<label for="slug" class="form-label">Slug <span class="text-danger">*</span></label>
+		<InputText id="slug" class="form-control" @bind-Value="Category.Slug" />
+		<div class="form-text">URL-friendly version of the name (e.g., my-category)</div>
+		<ValidationMessage For="@(() => Category.Slug)" />
+	</div>
+
+	<div class="mb-3">
+		<label for="description" class="form-label">Description</label>
+		<InputTextArea id="description" class="form-control" rows="3" @bind-Value="Category.Description" />
+		<div class="form-text">Brief description of the category (max 500 characters)</div>
+		<ValidationMessage For="@(() => Category.Description)" />
+	</div>
+
+	<div class="mb-3">
+		<label for="parentId" class="form-label">Parent Category</label>
+		<select id="parentId" class="form-select" @bind="Category.ParentId">
+			<option value="">-- None (Root Category) --</option>
+			@if (_availableParents is not null)
+			{
+				@foreach (var parent in _availableParents)
+				{
+					<option value="@parent.Id">@parent.Name</option>
+				}
+			}
+		</select>
+		<div class="form-text">Select a parent category to create a subcategory</div>
+		<ValidationMessage For="@(() => Category.ParentId)" />
+	</div>
+
+	<div class="mb-3">
+		<label for="displayOrder" class="form-label">Display Order</label>
+		<InputNumber id="displayOrder" class="form-control" @bind-Value="Category.DisplayOrder" />
+		<div class="form-text">Lower numbers appear first</div>
+		<ValidationMessage For="@(() => Category.DisplayOrder)" />
+	</div>
+
+	<div class="mb-3">
+		<div class="form-check form-switch">
+			<InputCheckbox id="isActive" class="form-check-input" @bind-Value="Category.IsActive" />
+			<label class="form-check-label" for="isActive">Active</label>
+		</div>
+	</div>
+
+	@if (!string.IsNullOrWhiteSpace(ErrorMessage))
+	{
+		<ErrorAlertComponent ErrorMessage="@ErrorMessage" CssClass="mb-3" />
+	}
+
+	<div class="d-grid gap-2">
+		<button type="submit" class="btn btn-primary" disabled="@_isSubmitting">
+			@if (_isSubmitting)
+			{
+				<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+			}
+			<i class="bi bi-save me-1"></i>
+			@SubmitButtonText
+		</button>
+		<button type="button" class="btn btn-outline-secondary" @onclick="HandleCancel" disabled="@_isSubmitting">
+			<i class="bi bi-x-circle me-1"></i> Cancel
+		</button>
+	</div>
+</EditForm>
+
+@code {
+	/// <summary>
+	/// Gets or sets the category being edited.
+	/// </summary>
+	[Parameter]
+	public Category Category { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets the submit button text.
+	/// </summary>
+	[Parameter]
+	public string SubmitButtonText { get; set; } = "Save Category";
+
+	/// <summary>
+	/// Gets or sets the callback when the form is submitted successfully.
+	/// </summary>
+	[Parameter]
+	public EventCallback<Category> OnSubmit { get; set; }
+
+	/// <summary>
+	/// Gets or sets the callback when the cancel button is clicked.
+	/// </summary>
+	[Parameter]
+	public EventCallback OnCancel { get; set; }
+
+	/// <summary>
+	/// Gets or sets the error message to display.
+	/// </summary>
+	[Parameter]
+	public string ErrorMessage { get; set; } = string.Empty;
+
+	private List<Category>? _availableParents;
+	private bool _isSubmitting;
+
+	protected override async Task OnInitializedAsync()
+	{
+		await LoadAvailableParentsAsync();
+	}
+
+	private async Task LoadAvailableParentsAsync()
+	{
+		try
+		{
+			var allCategories = await CategoryRepository.GetAllAsync(activeOnly: false);
+
+			// Exclude the current category and its descendants to prevent circular references
+			if (!string.IsNullOrWhiteSpace(Category.Id))
+			{
+				var descendantIds = GetDescendantIds(allCategories, Category.Id);
+				_availableParents = allCategories
+					.Where(c => c.Id != Category.Id && !descendantIds.Contains(c.Id))
+					.OrderBy(c => c.Name)
+					.ToList();
+			}
+			else
+			{
+				_availableParents = allCategories.OrderBy(c => c.Name).ToList();
+			}
+		}
+		catch (Exception ex)
+		{
+			Logger.LogError(ex, "Error loading parent categories");
+		}
+	}
+
+	private HashSet<string> GetDescendantIds(List<Category> allCategories, string parentId)
+	{
+		var descendants = new HashSet<string>();
+		var children = allCategories.Where(c => c.ParentId == parentId).ToList();
+
+		foreach (var child in children)
+		{
+			descendants.Add(child.Id);
+			foreach (var descendantId in GetDescendantIds(allCategories, child.Id))
+			{
+				descendants.Add(descendantId);
+			}
+		}
+
+		return descendants;
+	}
+
+	private void GenerateSlug(ChangeEventArgs e)
+	{
+		if (e.Value is string name && !string.IsNullOrWhiteSpace(name))
+		{
+			Category.Slug = name.ToLowerInvariant()
+				.Replace(" ", "-")
+				.Replace("_", "-");
+			
+			// Remove special characters and keep only alphanumeric and hyphens
+			Category.Slug = System.Text.RegularExpressions.Regex.Replace(Category.Slug, @"[^a-z0-9\-]", "");
+			
+			// Remove multiple consecutive hyphens
+			Category.Slug = System.Text.RegularExpressions.Regex.Replace(Category.Slug, @"-+", "-");
+			
+			// Trim hyphens from start and end
+			Category.Slug = Category.Slug.Trim('-');
+		}
+	}
+
+	private async Task HandleValidSubmitAsync()
+	{
+		_isSubmitting = true;
+
+		try
+		{
+			// Set timestamps
+			if (string.IsNullOrWhiteSpace(Category.Id))
+			{
+				Category.CreatedAt = DateTime.UtcNow;
+			}
+			Category.UpdatedAt = DateTime.UtcNow;
+
+			await OnSubmit.InvokeAsync(Category);
+		}
+		finally
+		{
+			_isSubmitting = false;
+		}
+	}
+
+	private async Task HandleCancel()
+	{
+		await OnCancel.InvokeAsync();
+	}
+}

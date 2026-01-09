@@ -1,0 +1,271 @@
+@* =======================================================
+Copyright (c) 2025. All rights reserved.
+File Name :     CategoriesPage.razor
+Company :       ArticleManagementApp
+Author :        GitHub Copilot
+Solution Name : ArticleManagementApp
+Project Name :  Web
+======================================================= *@
+
+@page "/categories"
+@rendermode InteractiveServer
+@inject CreateCategoryHandler CreateCategoryHandler
+@inject UpdateCategoryHandler UpdateCategoryHandler
+@inject DeleteCategoryHandler DeleteCategoryHandler
+@inject IArticleRepository ArticleRepository
+@inject NavigationManager Navigation
+@inject ILogger<CategoriesPage> Logger
+
+<PageTitle>Categories - ArticleManagementApp</PageTitle>
+
+<PageHeaderComponent Title="Categories" Subtitle="Organize your articles with categories">
+	<ActionButton>
+		<button class="btn btn-primary" @onclick="ShowCreateForm">
+			<i class="bi bi-plus-circle me-1"></i> Create Category
+		</button>
+	</ActionButton>
+</PageHeaderComponent>
+
+@if (_showForm)
+{
+	<div class="row mb-4">
+		<div class="col-md-6">
+			<div class="card">
+				<div class="card-header">
+					<h5 class="mb-0">@(_isEditing ? "Edit Category" : "Create Category")</h5>
+				</div>
+				<div class="card-body">
+					<CategoryFormComponent 
+						Category="@_currentCategory" 
+						SubmitButtonText="@(_isEditing ? "Update Category" : "Create Category")"
+						OnSubmit="HandleSubmitAsync"
+						OnCancel="HandleCancelForm"
+						ErrorMessage="@_errorMessage" />
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(_successMessage))
+{
+	<SuccessAlertComponent Message="@_successMessage" CssClass="mb-3" />
+}
+
+@if (!string.IsNullOrWhiteSpace(_errorMessage) && !_showForm)
+{
+	<ErrorAlertComponent ErrorMessage="@_errorMessage" CssClass="mb-3" />
+}
+
+<div class="row mb-3">
+	<div class="col-md-6">
+		<div class="btn-group" role="group">
+			<button type="button" class="btn @(_viewMode == "tree" ? "btn-primary" : "btn-outline-primary")" 
+					@onclick='() => _viewMode = "tree"'>
+				<i class="bi bi-diagram-3 me-1"></i> Tree View
+			</button>
+			<button type="button" class="btn @(_viewMode == "grid" ? "btn-primary" : "btn-outline-primary")" 
+					@onclick='() => _viewMode = "grid"'>
+				<i class="bi bi-grid-3x3-gap me-1"></i> Grid View
+			</button>
+		</div>
+	</div>
+</div>
+
+<CategoryListComponent @ref="_categoryList" 
+					   ShowActions="true" 
+					   ViewMode="@_viewMode"
+					   OnEdit="HandleEdit"
+					   OnDelete="HandleDeleteAsync" />
+
+@* Delete Confirmation Modal *@
+@if (_showDeleteConfirm && _categoryToDelete is not null)
+{
+	<div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title">Confirm Delete</h5>
+					<button type="button" class="btn-close" @onclick="CancelDelete"></button>
+				</div>
+				<div class="modal-body">
+					<p>Are you sure you want to delete the category <strong>@_categoryToDelete.Name</strong>?</p>
+					@if (_deleteArticleCount > 0)
+					{
+						<div class="alert alert-warning">
+							<i class="bi bi-exclamation-triangle me-2"></i>
+							This category has <strong>@_deleteArticleCount article(s)</strong>. 
+							Deleting this category may affect these articles.
+						</div>
+					}
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" @onclick="CancelDelete">Cancel</button>
+					<button type="button" class="btn btn-danger" @onclick="ConfirmDeleteAsync" disabled="@_isDeleting">
+						@if (_isDeleting)
+						{
+							<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+						}
+						Delete
+					</button>
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
+@code {
+	private CategoryListComponent? _categoryList;
+	private Category _currentCategory = new();
+	private bool _showForm = false;
+	private bool _isEditing = false;
+	private string _errorMessage = string.Empty;
+	private string _successMessage = string.Empty;
+	private string _viewMode = "tree";
+
+	// Delete confirmation
+	private bool _showDeleteConfirm = false;
+	private Category? _categoryToDelete;
+	private int _deleteArticleCount = 0;
+	private bool _isDeleting = false;
+
+	private void ShowCreateForm()
+	{
+		_currentCategory = new Category { IsActive = true };
+		_isEditing = false;
+		_showForm = true;
+		_errorMessage = string.Empty;
+		_successMessage = string.Empty;
+	}
+
+	private void HandleEdit(Category category)
+	{
+		_currentCategory = new Category
+		{
+			Id = category.Id,
+			Name = category.Name,
+			Slug = category.Slug,
+			Description = category.Description,
+			ParentId = category.ParentId,
+			DisplayOrder = category.DisplayOrder,
+			IsActive = category.IsActive,
+			CreatedAt = category.CreatedAt,
+			UpdatedAt = category.UpdatedAt
+		};
+		_isEditing = true;
+		_showForm = true;
+		_errorMessage = string.Empty;
+		_successMessage = string.Empty;
+	}
+
+	private void HandleCancelForm()
+	{
+		_showForm = false;
+		_currentCategory = new();
+		_errorMessage = string.Empty;
+	}
+
+	private async Task HandleSubmitAsync(Category category)
+	{
+		_errorMessage = string.Empty;
+		_successMessage = string.Empty;
+
+		try
+		{
+			Result<Category> result;
+
+			if (_isEditing)
+			{
+				result = await UpdateCategoryHandler.HandleAsync(category);
+				_successMessage = result.IsSuccess ? "Category updated successfully!" : string.Empty;
+			}
+			else
+			{
+				result = await CreateCategoryHandler.HandleAsync(category);
+				_successMessage = result.IsSuccess ? "Category created successfully!" : string.Empty;
+			}
+
+			if (result.IsSuccess)
+			{
+				Logger.LogInformation("Category {Action}: {CategoryId}", _isEditing ? "updated" : "created", result.Value?.Id);
+				_showForm = false;
+				_currentCategory = new();
+				
+				// Refresh the category list
+				if (_categoryList is not null)
+				{
+					await _categoryList.RefreshAsync();
+				}
+			}
+			else
+			{
+				_errorMessage = result.Error;
+				Logger.LogWarning("Failed to {Action} category: {Error}", _isEditing ? "update" : "create", result.Error);
+			}
+		}
+		catch (Exception ex)
+		{
+			_errorMessage = $"An unexpected error occurred: {ex.Message}";
+			Logger.LogError(ex, "Error {Action} category", _isEditing ? "updating" : "creating");
+		}
+	}
+
+	private async Task HandleDeleteAsync(Category category)
+	{
+		_categoryToDelete = category;
+		_deleteArticleCount = await ArticleRepository.GetCountByCategoryAsync(category.Id);
+		_showDeleteConfirm = true;
+	}
+
+	private void CancelDelete()
+	{
+		_showDeleteConfirm = false;
+		_categoryToDelete = null;
+		_deleteArticleCount = 0;
+	}
+
+	private async Task ConfirmDeleteAsync()
+	{
+		if (_categoryToDelete is null) return;
+
+		_isDeleting = true;
+		_errorMessage = string.Empty;
+		_successMessage = string.Empty;
+
+		try
+		{
+			var result = await DeleteCategoryHandler.HandleAsync(_categoryToDelete.Id);
+
+			if (result.IsSuccess)
+			{
+				_successMessage = $"Category '{_categoryToDelete.Name}' deleted successfully!";
+				Logger.LogInformation("Category deleted: {CategoryId}", _categoryToDelete.Id);
+				
+				_showDeleteConfirm = false;
+				_categoryToDelete = null;
+				
+				// Refresh the category list
+				if (_categoryList is not null)
+				{
+					await _categoryList.RefreshAsync();
+				}
+			}
+			else
+			{
+				_errorMessage = result.Error;
+				Logger.LogWarning("Failed to delete category: {Error}", result.Error);
+				_showDeleteConfirm = false;
+			}
+		}
+		catch (Exception ex)
+		{
+			_errorMessage = $"An unexpected error occurred: {ex.Message}";
+			Logger.LogError(ex, "Error deleting category");
+			_showDeleteConfirm = false;
+		}
+		finally
+		{
+			_isDeleting = false;
+		}
+	}
+}

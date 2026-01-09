@@ -1,0 +1,409 @@
+@* =======================================================
+Copyright (c) 2025. All rights reserved.
+File Name :     CategoryListComponent.razor
+Company :       ArticleManagementApp
+Author :        GitHub Copilot
+Solution Name : ArticleManagementApp
+Project Name :  Web
+======================================================= *@
+
+@inject GetAllCategoriesHandler GetAllCategoriesHandler
+@inject GetRootCategoriesHandler GetRootCategoriesHandler
+@inject GetSubcategoriesHandler GetSubcategoriesHandler
+@inject IArticleRepository ArticleRepository
+@inject ILogger<CategoryListComponent> Logger
+
+<div class="category-list @CssClass">
+	@if (_isLoading)
+	{
+		<LoadingComponent Message="Loading categories..." />
+	}
+	else if (_rootCategories is null || _rootCategories.Count == 0)
+	{
+		<div class="alert alert-info">
+			<i class="bi bi-info-circle me-2"></i>
+			No categories found. <a href="/categories/create">Create your first category</a>!
+		</div>
+	}
+	else
+	{
+		@if (ViewMode == "tree")
+		{
+			<div class="list-group">
+				@foreach (var category in _rootCategories)
+				{
+					<CategoryTreeItem Category="@category" 
+									  Subcategories="@GetSubcategories(category.Id)" 
+									  ArticleCounts="@_articleCounts"
+									  OnEdit="@OnEdit"
+									  OnDelete="@OnDelete"
+									  ShowActions="@ShowActions" />
+				}
+			</div>
+		}
+		else
+		{
+			<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+				@foreach (var category in _allCategories ?? [])
+				{
+					<div class="col">
+						<div class="card h-100">
+							<div class="card-body">
+								<div class="d-flex justify-content-between align-items-start mb-2">
+									<h5 class="card-title">@category.Name</h5>
+									@if (category.IsActive)
+									{
+										<span class="badge bg-success">Active</span>
+									}
+									else
+									{
+										<span class="badge bg-secondary">Inactive</span>
+									}
+								</div>
+								@if (!string.IsNullOrWhiteSpace(category.Description))
+								{
+									<p class="card-text text-muted">@category.Description</p>
+								}
+								<div class="text-muted small">
+									<div><strong>Slug:</strong> @category.Slug</div>
+									<div><strong>Articles:</strong> @(_articleCounts.TryGetValue(category.Id, out var count) ? count : 0)</div>
+									<div><strong>Order:</strong> @category.DisplayOrder</div>
+								</div>
+								@if (ShowActions)
+								{
+									<div class="d-flex gap-2 mt-3">
+										<button class="btn btn-sm btn-outline-primary" @onclick="() => OnEdit.InvokeAsync(category)">
+											<i class="bi bi-pencil me-1"></i> Edit
+										</button>
+										<button class="btn btn-sm btn-outline-danger" @onclick="() => OnDelete.InvokeAsync(category)">
+											<i class="bi bi-trash me-1"></i> Delete
+										</button>
+									</div>
+								}
+							</div>
+						</div>
+					</div>
+				}
+			</div>
+		}
+	}
+</div>
+
+@code {
+	/// <summary>
+	/// Gets or sets whether to show action buttons.
+	/// </summary>
+	[Parameter]
+	public bool ShowActions { get; set; } = true;
+
+	/// <summary>
+	/// Gets or sets the view mode (tree or grid).
+	/// </summary>
+	[Parameter]
+	public string ViewMode { get; set; } = "tree";
+
+	/// <summary>
+	/// Gets or sets the callback when edit is clicked.
+	/// </summary>
+	[Parameter]
+	public EventCallback<Category> OnEdit { get; set; }
+
+	/// <summary>
+	/// Gets or sets the callback when delete is clicked.
+	/// </summary>
+	[Parameter]
+	public EventCallback<Category> OnDelete { get; set; }
+
+	/// <summary>
+	/// Gets or sets additional CSS classes to apply to the component.
+	/// </summary>
+	[Parameter]
+	public string CssClass { get; set; } = string.Empty;
+
+	private List<Category>? _allCategories;
+	private List<Category>? _rootCategories;
+	private Dictionary<string, List<Category>> _subcategories = new();
+	private Dictionary<string, int> _articleCounts = new();
+	private bool _isLoading = true;
+
+	protected override async Task OnInitializedAsync()
+	{
+		await LoadCategoriesAsync();
+		await LoadArticleCountsAsync();
+	}
+
+	private async Task LoadCategoriesAsync()
+	{
+		_isLoading = true;
+
+		try
+		{
+			var allResult = await GetAllCategoriesHandler.HandleAsync(activeOnly: false);
+			if (allResult.IsSuccess && allResult.Value is not null)
+			{
+				_allCategories = allResult.Value.OrderBy(c => c.DisplayOrder).ThenBy(c => c.Name).ToList();
+			}
+
+			var rootResult = await GetRootCategoriesHandler.HandleAsync();
+			if (rootResult.IsSuccess && rootResult.Value is not null)
+			{
+				_rootCategories = rootResult.Value.OrderBy(c => c.DisplayOrder).ThenBy(c => c.Name).ToList();
+
+				// Load subcategories for each root category
+				foreach (var root in _rootCategories)
+				{
+					var subResult = await GetSubcategoriesHandler.HandleAsync(root.Id);
+					if (subResult.IsSuccess && subResult.Value is not null)
+					{
+						_subcategories[root.Id] = subResult.Value.OrderBy(c => c.DisplayOrder).ThenBy(c => c.Name).ToList();
+					}
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			Logger.LogError(ex, "Error loading categories");
+		}
+		finally
+		{
+			_isLoading = false;
+		}
+	}
+
+	private async Task LoadArticleCountsAsync()
+	{
+		try
+		{
+			if (_allCategories is null) return;
+
+			foreach (var category in _allCategories)
+			{
+				var count = await ArticleRepository.GetCountByCategoryAsync(category.Id);
+				_articleCounts[category.Id] = count;
+			}
+		}
+		catch (Exception ex)
+		{
+			Logger.LogError(ex, "Error loading article counts");
+		}
+	}
+
+	private List<Category> GetSubcategories(string parentId)
+	{
+		return _subcategories.TryGetValue(parentId, out var subcats) ? subcats : [];
+	}
+
+	/// <summary>
+	/// Reloads the category list.
+	/// </summary>
+	public async Task RefreshAsync()
+	{
+		await LoadCategoriesAsync();
+		await LoadArticleCountsAsync();
+		StateHasChanged();
+	}
+}
+
+@* Nested component for tree view *@
+@code {
+	private class CategoryTreeItem : ComponentBase
+	{
+		[Parameter] public Category Category { get; set; } = default!;
+		[Parameter] public List<Category> Subcategories { get; set; } = [];
+		[Parameter] public Dictionary<string, int> ArticleCounts { get; set; } = new();
+		[Parameter] public EventCallback<Category> OnEdit { get; set; }
+		[Parameter] public EventCallback<Category> OnDelete { get; set; }
+		[Parameter] public bool ShowActions { get; set; } = true;
+
+		private bool _isExpanded = true;
+
+		protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder)
+		{
+			var seq = 0;
+
+			// Root category item
+			builder.OpenElement(seq++, "div");
+			builder.AddAttribute(seq++, "class", "list-group-item");
+
+			// Category header
+			builder.OpenElement(seq++, "div");
+			builder.AddAttribute(seq++, "class", "d-flex justify-content-between align-items-center");
+
+			// Left side (expand button + name)
+			builder.OpenElement(seq++, "div");
+			builder.AddAttribute(seq++, "class", "d-flex align-items-center");
+
+			if (Subcategories.Count > 0)
+			{
+				builder.OpenElement(seq++, "button");
+				builder.AddAttribute(seq++, "class", "btn btn-sm btn-link text-decoration-none p-0 me-2");
+				builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, ToggleExpand));
+				builder.OpenElement(seq++, "i");
+				builder.AddAttribute(seq++, "class", _isExpanded ? "bi bi-chevron-down" : "bi bi-chevron-right");
+				builder.CloseElement(); // i
+				builder.CloseElement(); // button
+			}
+
+			builder.OpenElement(seq++, "h6");
+			builder.AddAttribute(seq++, "class", "mb-0");
+			builder.AddContent(seq++, Category.Name);
+			builder.CloseElement(); // h6
+
+			builder.OpenElement(seq++, "small");
+			builder.AddAttribute(seq++, "class", "text-muted ms-2");
+			var articleCount = ArticleCounts.TryGetValue(Category.Id, out var count) ? count : 0;
+			builder.AddContent(seq++, $"({articleCount} articles)");
+			builder.CloseElement(); // small
+
+			builder.CloseElement(); // div (left side)
+
+			// Right side (badges + actions)
+			builder.OpenElement(seq++, "div");
+			builder.AddAttribute(seq++, "class", "d-flex align-items-center gap-2");
+
+			if (Category.IsActive)
+			{
+				builder.OpenElement(seq++, "span");
+				builder.AddAttribute(seq++, "class", "badge bg-success");
+				builder.AddContent(seq++, "Active");
+				builder.CloseElement();
+			}
+			else
+			{
+				builder.OpenElement(seq++, "span");
+				builder.AddAttribute(seq++, "class", "badge bg-secondary");
+				builder.AddContent(seq++, "Inactive");
+				builder.CloseElement();
+			}
+
+			if (ShowActions)
+			{
+				builder.OpenElement(seq++, "div");
+				builder.AddAttribute(seq++, "class", "btn-group btn-group-sm");
+
+				builder.OpenElement(seq++, "button");
+				builder.AddAttribute(seq++, "class", "btn btn-outline-primary");
+				builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => OnEdit.InvokeAsync(Category)));
+				builder.OpenElement(seq++, "i");
+				builder.AddAttribute(seq++, "class", "bi bi-pencil");
+				builder.CloseElement();
+				builder.CloseElement(); // button
+
+				builder.OpenElement(seq++, "button");
+				builder.AddAttribute(seq++, "class", "btn btn-outline-danger");
+				builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => OnDelete.InvokeAsync(Category)));
+				builder.OpenElement(seq++, "i");
+				builder.AddAttribute(seq++, "class", "bi bi-trash");
+				builder.CloseElement();
+				builder.CloseElement(); // button
+
+				builder.CloseElement(); // btn-group
+			}
+
+			builder.CloseElement(); // div (right side)
+			builder.CloseElement(); // div (header)
+
+			// Category metadata
+			if (!string.IsNullOrWhiteSpace(Category.Description))
+			{
+				builder.OpenElement(seq++, "p");
+				builder.AddAttribute(seq++, "class", "text-muted small mb-0 mt-2");
+				builder.AddContent(seq++, Category.Description);
+				builder.CloseElement();
+			}
+
+			builder.CloseElement(); // list-group-item
+
+			// Subcategories
+			if (_isExpanded && Subcategories.Count > 0)
+			{
+				builder.OpenElement(seq++, "div");
+				builder.AddAttribute(seq++, "class", "ms-4");
+
+				foreach (var subcat in Subcategories)
+				{
+					builder.OpenElement(seq++, "div");
+					builder.AddAttribute(seq++, "class", "list-group-item border-start");
+
+					builder.OpenElement(seq++, "div");
+					builder.AddAttribute(seq++, "class", "d-flex justify-content-between align-items-center");
+
+					builder.OpenElement(seq++, "div");
+					builder.OpenElement(seq++, "h6");
+					builder.AddAttribute(seq++, "class", "mb-0");
+					builder.AddContent(seq++, $"└─ {subcat.Name}");
+					builder.CloseElement();
+
+					builder.OpenElement(seq++, "small");
+					builder.AddAttribute(seq++, "class", "text-muted ms-2");
+					var subArticleCount = ArticleCounts.TryGetValue(subcat.Id, out var subCount) ? subCount : 0;
+					builder.AddContent(seq++, $"({subArticleCount} articles)");
+					builder.CloseElement();
+					builder.CloseElement(); // div
+
+					builder.OpenElement(seq++, "div");
+					builder.AddAttribute(seq++, "class", "d-flex align-items-center gap-2");
+
+					if (subcat.IsActive)
+					{
+						builder.OpenElement(seq++, "span");
+						builder.AddAttribute(seq++, "class", "badge bg-success");
+						builder.AddContent(seq++, "Active");
+						builder.CloseElement();
+					}
+					else
+					{
+						builder.OpenElement(seq++, "span");
+						builder.AddAttribute(seq++, "class", "badge bg-secondary");
+						builder.AddContent(seq++, "Inactive");
+						builder.CloseElement();
+					}
+
+					if (ShowActions)
+					{
+						builder.OpenElement(seq++, "div");
+						builder.AddAttribute(seq++, "class", "btn-group btn-group-sm");
+
+						builder.OpenElement(seq++, "button");
+						builder.AddAttribute(seq++, "class", "btn btn-outline-primary");
+						builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => OnEdit.InvokeAsync(subcat)));
+						builder.OpenElement(seq++, "i");
+						builder.AddAttribute(seq++, "class", "bi bi-pencil");
+						builder.CloseElement();
+						builder.CloseElement();
+
+						builder.OpenElement(seq++, "button");
+						builder.AddAttribute(seq++, "class", "btn btn-outline-danger");
+						builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => OnDelete.InvokeAsync(subcat)));
+						builder.OpenElement(seq++, "i");
+						builder.AddAttribute(seq++, "class", "bi bi-trash");
+						builder.CloseElement();
+						builder.CloseElement();
+
+						builder.CloseElement(); // btn-group
+					}
+
+					builder.CloseElement(); // div (right)
+					builder.CloseElement(); // div (header)
+
+					if (!string.IsNullOrWhiteSpace(subcat.Description))
+					{
+						builder.OpenElement(seq++, "p");
+						builder.AddAttribute(seq++, "class", "text-muted small mb-0 mt-2");
+						builder.AddContent(seq++, subcat.Description);
+						builder.CloseElement();
+					}
+
+					builder.CloseElement(); // list-group-item
+				}
+
+				builder.CloseElement(); // ms-4
+			}
+		}
+
+		private void ToggleExpand()
+		{
+			_isExpanded = !_isExpanded;
+		}
+	}
+}
