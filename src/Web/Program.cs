@@ -15,6 +15,12 @@ builder.AddMongoDBClient("mongodb");
 // Add Redis (will be configured by Aspire)
 builder.AddRedisClient("redis");
 
+// Add data access services (MongoDB client will be resolved from DI)
+builder.Services.AddScoped<IArticleRepository>(sp => 
+    new ArticleRepository(sp.GetRequiredService<IMongoClient>(), "ArticleManagementDb"));
+builder.Services.AddScoped<ICategoryRepository>(sp => 
+    new CategoryRepository(sp.GetRequiredService<IMongoClient>(), "ArticleManagementDb"));
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline

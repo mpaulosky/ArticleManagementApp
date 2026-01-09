@@ -1,6 +1,10 @@
 global using System.Net.Http.Json;
+global using ArticleManagementApp.Shared.Interfaces;
+global using ArticleManagementApp.Web.Data;
+global using ArticleManagementApp.Web.Services;
 global using Microsoft.AspNetCore.Builder;
 global using Microsoft.AspNetCore.Components;
 global using Microsoft.AspNetCore.Components.Routing;
 global using Microsoft.Extensions.DependencyInjection;
 global using Microsoft.Extensions.Logging;
+global using MongoDB.Driver;
