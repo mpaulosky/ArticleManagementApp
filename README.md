@@ -37,7 +37,7 @@ ArticleManagementApp is a greenfield article/blog management system designed for
 
 ## 📦 Project Structure
 
-```
+```text
 ArticleManagementApp/
 ├── src/
 │   ├── AppHost/                 # .NET Aspire orchestration
@@ -49,6 +49,56 @@ ArticleManagementApp/
     ├── Web.Tests.Unit/          # Component and service tests
     ├── Web.Tests.Integration/   # Integration tests with TestContainers
     └── Architecture.Tests/      # Code structure validation
+```
+
+### Global usings
+
+Each project centralizes common namespaces to reduce per-file noise (see `GlobalUsings.cs`):
+
+- `src/AppHost/GlobalUsings.cs` – Aspire hosting primitives.
+- `src/Web/GlobalUsings.cs` – Blazor, routing, DI, logging, and HttpClient helpers.
+- `src/Shared/GlobalUsings.cs` – core system and validation primitives.
+- `src/ServiceDefaults/GlobalUsings.cs` – configuration and hosting helpers.
+- Tests: `tests/*/GlobalUsings.cs` – shared test imports (xUnit).
+
+Example stub:
+
+```csharp
+// src/Web/GlobalUsings.cs
+global using System.Net.Http.Json;
+global using Microsoft.AspNetCore.Builder;
+global using Microsoft.AspNetCore.Components;
+global using Microsoft.AspNetCore.Components.Routing;
+global using Microsoft.Extensions.DependencyInjection;
+global using Microsoft.Extensions.Logging;
+```
+
+### Sample stubs
+
+Start new feature slices with these minimal stubs:
+
+```csharp
+// src/Shared/Entities/Article.cs
+namespace ArticleManagementApp.Shared.Entities;
+
+public sealed class Article
+{
+   public Guid Id { get; init; }
+   public string Title { get; set; } = string.Empty;
+   public string Slug { get; set; } = string.Empty;
+   public string Body { get; set; } = string.Empty;
+   public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
+}
+```
+
+```razor
+@* src/Web/Components/Articles/ArticleList.razor *@
+@using ArticleManagementApp.Shared.Entities
+
+<h2 class="h4 mb-3">Articles</h2>
+<ul class="list-group">
+   <li class="list-group-item" aria-live="polite">Article list placeholder</li>
+</ul>
 ```
 
 ## 🚀 Getting Started
@@ -63,29 +113,34 @@ ArticleManagementApp/
 ### Local Development Setup
 
 1. **Clone the repository**:
+
    ```bash
    git clone https://github.com/yourusername/ArticleManagementApp.git
    cd ArticleManagementApp
    ```
 
 2. **Restore NuGet packages**:
+
    ```bash
    dotnet restore
    ```
 
 3. **Configure Auth0** (see [SETUP.md](./SETUP.md)):
+
    ```bash
    cp appsettings.Development.json.template appsettings.Development.json
    # Edit appsettings.Development.json with your Auth0 credentials
    ```
 
 4. **Run with Aspire** (starts MongoDB, Redis, and Web app):
+
    ```bash
    dotnet watch run --project src/AppHost
    ```
 
 5. **Open browser**:
-   ```
+
+   ```text
    http://localhost:5000
    ```
 
@@ -126,7 +181,7 @@ See [SETUP.md](./SETUP.md) for Auth0 configuration steps.
 - **Services/**: Business logic services (auth, file upload, seeding)
 - **Shared/Entities/**: Domain models (Article, Category)
 - **Shared/Models/**: DTOs and API contracts
-- **Shared/Abstractions/**: Interfaces and base patterns (Result<T>)
+- **Shared/Abstractions/**: Interfaces and base patterns (Result&lt;T&gt;)
 - **Shared/Validators/**: FluentValidation rules
 
 ## 📚 Documentation
@@ -153,13 +208,15 @@ docker build -t articlemgmt:latest .
 
 **Phase 1 (Current)**: MVP with Articles, Categories, basic Admin dashboard
 
-**Phase 2**: 
+**Phase 2**:
+
 - Full-text search
 - Comments and reactions
 - Tag support
 - Analytics dashboard
 
 **Phase 3**:
+
 - REST API layer
 - Mobile app support
 - Advanced scheduling
