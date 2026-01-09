@@ -1,0 +1,88 @@
+@* =======================================================
+Copyright (c) 2025. All rights reserved.
+File Name :     ArticleDetailPage.razor
+Company :       ArticleManagementApp
+Author :        GitHub Copilot
+Solution Name : ArticleManagementApp
+Project Name :  Web
+======================================================= *@
+
+@page "/articles/{slug}"
+@rendermode InteractiveServer
+@inject IArticleRepository ArticleRepository
+@inject ILogger<ArticleDetailPage> Logger
+@inject NavigationManager Navigation
+
+<PageTitle>@(_article?.Title ?? "Article") - ArticleManagementApp</PageTitle>
+
+@if (_isLoading)
+{
+	<LoadingComponent Message="Loading article..." />
+}
+else if (_article is null)
+{
+	<div class="alert alert-warning">
+		<i class="bi bi-exclamation-triangle me-2"></i>
+		Article not found.
+		<a href="/articles" class="alert-link">Back to articles</a>
+	</div>
+}
+else
+{
+	<ArticleDetailComponent Article="@_article" ShowActions="true" />
+}
+
+@code {
+	/// <summary>
+	/// Gets or sets the article slug from the route.
+	/// </summary>
+	[Parameter]
+	public string Slug { get; set; } = string.Empty;
+
+	private Article? _article;
+	private bool _isLoading = true;
+
+	protected override async Task OnInitializedAsync()
+	{
+		await LoadArticleAsync();
+		await IncrementViewCountAsync();
+	}
+
+	private async Task LoadArticleAsync()
+	{
+		_isLoading = true;
+
+		try
+		{
+			_article = await ArticleRepository.GetBySlugAsync(Slug);
+
+			if (_article is null)
+			{
+				Logger.LogWarning("Article with slug '{Slug}' not found", Slug);
+			}
+		}
+		catch (Exception ex)
+		{
+			Logger.LogError(ex, "Error loading article with slug '{Slug}'", Slug);
+		}
+		finally
+		{
+			_isLoading = false;
+		}
+	}
+
+	private async Task IncrementViewCountAsync()
+	{
+		if (_article is not null)
+		{
+			try
+			{
+				await ArticleRepository.IncrementViewCountAsync(_article.Id);
+			}
+			catch (Exception ex)
+			{
+				Logger.LogError(ex, "Error incrementing view count for article '{ArticleId}'", _article.Id);
+			}
+		}
+	}
+}

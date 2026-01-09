@@ -1,0 +1,50 @@
+@* =======================================================
+Copyright (c) 2025. All rights reserved.
+File Name :     LoadingComponent.razor
+Company :       ArticleManagementApp
+Author :        GitHub Copilot
+Solution Name : ArticleManagementApp
+Project Name :  Web
+======================================================= *@
+
+<div class="d-flex justify-content-center align-items-center @CssClass" style="@Style">
+	<div class="spinner-border text-primary @SpinnerSize" role="status">
+		<span class="visually-hidden">@LoadingText</span>
+	</div>
+	@if (!string.IsNullOrWhiteSpace(Message))
+	{
+		<span class="ms-3 text-muted">@Message</span>
+	}
+</div>
+
+@code {
+	/// <summary>
+	/// Gets or sets the loading message to display next to the spinner.
+	/// </summary>
+	[Parameter]
+	public string Message { get; set; } = string.Empty;
+
+	/// <summary>
+	/// Gets or sets the screen reader text for the loading spinner.
+	/// </summary>
+	[Parameter]
+	public string LoadingText { get; set; } = "Loading...";
+
+	/// <summary>
+	/// Gets or sets additional CSS classes to apply to the component.
+	/// </summary>
+	[Parameter]
+	public string CssClass { get; set; } = string.Empty;
+
+	/// <summary>
+	/// Gets or sets the spinner size (spinner-border-sm for small).
+	/// </summary>
+	[Parameter]
+	public string SpinnerSize { get; set; } = string.Empty;
+
+	/// <summary>
+	/// Gets or sets inline styles to apply to the component.
+	/// </summary>
+	[Parameter]
+	public string Style { get; set; } = "min-height: 200px;";
+}

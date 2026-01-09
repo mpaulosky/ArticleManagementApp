@@ -1,0 +1,89 @@
+@* =======================================================
+Copyright (c) 2025. All rights reserved.
+File Name :     CreateArticlePage.razor
+Company :       ArticleManagementApp
+Author :        GitHub Copilot
+Solution Name : ArticleManagementApp
+Project Name :  Web
+======================================================= *@
+
+@page "/articles/create"
+@rendermode InteractiveServer
+@inject CreateArticleHandler CreateArticleHandler
+@inject NavigationManager Navigation
+@inject ILogger<CreateArticlePage> Logger
+
+<PageTitle>Create Article - ArticleManagementApp</PageTitle>
+
+<PageHeaderComponent Title="Create Article" Subtitle="Write and publish a new article">
+	<Breadcrumbs>
+		<li class="breadcrumb-item"><a href="/articles">Articles</a></li>
+		<li class="breadcrumb-item active" aria-current="page">Create</li>
+	</Breadcrumbs>
+</PageHeaderComponent>
+
+<div class="row">
+	<div class="col-12">
+		<div class="card">
+			<div class="card-body">
+				<ArticleFormComponent 
+					Article="@_article" 
+					SubmitButtonText="Create Article"
+					OnSubmit="HandleSubmitAsync"
+					OnCancel="HandleCancel"
+					ErrorMessage="@_errorMessage" />
+			</div>
+		</div>
+	</div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(_successMessage))
+{
+	<SuccessAlertComponent Message="@_successMessage" CssClass="mt-3" />
+}
+
+@code {
+	private Article _article = new()
+	{
+		Author = "Default Author", // TODO: Get from authenticated user
+		IsPublished = false
+	};
+	private string _errorMessage = string.Empty;
+	private string _successMessage = string.Empty;
+
+	private async Task HandleSubmitAsync(Article article)
+	{
+		_errorMessage = string.Empty;
+		_successMessage = string.Empty;
+
+		try
+		{
+			var result = await CreateArticleHandler.HandleAsync(article);
+
+			if (result.IsSuccess)
+			{
+				_successMessage = "Article created successfully!";
+				Logger.LogInformation("Article created: {ArticleId}", result.Value?.Id);
+
+				// Redirect to the article detail page after a short delay
+				await Task.Delay(1000);
+				Navigation.NavigateTo($"/articles/{result.Value?.Slug}");
+			}
+			else
+			{
+				_errorMessage = result.Error;
+				Logger.LogWarning("Failed to create article: {Error}", result.Error);
+			}
+		}
+		catch (Exception ex)
+		{
+			_errorMessage = $"An unexpected error occurred: {ex.Message}";
+			Logger.LogError(ex, "Error creating article");
+		}
+	}
+
+	private void HandleCancel()
+	{
+		Navigation.NavigateTo("/articles");
+	}
+}

@@ -1,0 +1,148 @@
+@* =======================================================
+Copyright (c) 2025. All rights reserved.
+File Name :     EditArticlePage.razor
+Company :       ArticleManagementApp
+Author :        GitHub Copilot
+Solution Name : ArticleManagementApp
+Project Name :  Web
+======================================================= *@
+
+@page "/articles/edit/{id}"
+@rendermode InteractiveServer
+@inject GetArticleByIdHandler GetArticleByIdHandler
+@inject UpdateArticleHandler UpdateArticleHandler
+@inject NavigationManager Navigation
+@inject ILogger<EditArticlePage> Logger
+
+<PageTitle>Edit Article - ArticleManagementApp</PageTitle>
+
+@if (_isLoading)
+{
+	<LoadingComponent Message="Loading article..." />
+}
+else if (_article is null)
+{
+	<div class="alert alert-warning">
+		<i class="bi bi-exclamation-triangle me-2"></i>
+		Article not found.
+		<a href="/articles" class="alert-link">Back to articles</a>
+	</div>
+}
+else
+{
+	<PageHeaderComponent Title="Edit Article" Subtitle="@_article.Title">
+		<Breadcrumbs>
+			<li class="breadcrumb-item"><a href="/articles">Articles</a></li>
+			<li class="breadcrumb-item"><a href="/articles/@_article.Slug">@_article.Title</a></li>
+			<li class="breadcrumb-item active" aria-current="page">Edit</li>
+		</Breadcrumbs>
+	</PageHeaderComponent>
+
+	<div class="row">
+		<div class="col-12">
+			<div class="card">
+				<div class="card-body">
+					<ArticleFormComponent 
+						Article="@_article" 
+						SubmitButtonText="Update Article"
+						OnSubmit="HandleSubmitAsync"
+						OnCancel="HandleCancel"
+						ErrorMessage="@_errorMessage" />
+				</div>
+			</div>
+		</div>
+	</div>
+
+	@if (!string.IsNullOrWhiteSpace(_successMessage))
+	{
+		<SuccessAlertComponent Message="@_successMessage" CssClass="mt-3" />
+	}
+}
+
+@code {
+	/// <summary>
+	/// Gets or sets the article ID from the route.
+	/// </summary>
+	[Parameter]
+	public string Id { get; set; } = string.Empty;
+
+	private Article? _article;
+	private bool _isLoading = true;
+	private string _errorMessage = string.Empty;
+	private string _successMessage = string.Empty;
+
+	protected override async Task OnInitializedAsync()
+	{
+		await LoadArticleAsync();
+	}
+
+	private async Task LoadArticleAsync()
+	{
+		_isLoading = true;
+
+		try
+		{
+			var result = await GetArticleByIdHandler.HandleAsync(Id);
+
+			if (result.IsSuccess && result.Value is not null)
+			{
+				_article = result.Value;
+			}
+			else
+			{
+				Logger.LogWarning("Article with ID '{ArticleId}' not found", Id);
+			}
+		}
+		catch (Exception ex)
+		{
+			Logger.LogError(ex, "Error loading article with ID '{ArticleId}'", Id);
+		}
+		finally
+		{
+			_isLoading = false;
+		}
+	}
+
+	private async Task HandleSubmitAsync(Article article)
+	{
+		_errorMessage = string.Empty;
+		_successMessage = string.Empty;
+
+		try
+		{
+			var result = await UpdateArticleHandler.HandleAsync(article);
+
+			if (result.IsSuccess)
+			{
+				_successMessage = "Article updated successfully!";
+				Logger.LogInformation("Article updated: {ArticleId}", article.Id);
+
+				// Redirect to the article detail page after a short delay
+				await Task.Delay(1000);
+				Navigation.NavigateTo($"/articles/{result.Value?.Slug}");
+			}
+			else
+			{
+				_errorMessage = result.Error;
+				Logger.LogWarning("Failed to update article: {Error}", result.Error);
+			}
+		}
+		catch (Exception ex)
+		{
+			_errorMessage = $"An unexpected error occurred: {ex.Message}";
+			Logger.LogError(ex, "Error updating article");
+		}
+	}
+
+	private void HandleCancel()
+	{
+		if (_article is not null)
+		{
+			Navigation.NavigateTo($"/articles/{_article.Slug}");
+		}
+		else
+		{
+			Navigation.NavigateTo("/articles");
+		}
+	}
+}
